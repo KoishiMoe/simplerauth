@@ -60,7 +60,7 @@ public abstract class ServerPlayNetworkHandlerMixin {
 
     @Inject(method = "onChatMessage", at = @At("HEAD"), cancellable = true)
     public void onChatMessage(ChatMessageC2SPacket packet, CallbackInfo ci) {
-        if (!OnGameMessage.canSendMessage(this.player, packet.getChatMessage())) {
+        if (!OnGameMessage.canSendMessage(this.player, packet.chatMessage())) {
             ci.cancel();
         }
     }
