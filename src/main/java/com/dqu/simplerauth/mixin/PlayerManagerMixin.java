@@ -3,12 +3,10 @@ package com.dqu.simplerauth.mixin;
 import com.dqu.simplerauth.AuthMod;
 import com.dqu.simplerauth.listeners.OnPlayerConnect;
 import com.dqu.simplerauth.listeners.OnPlayerLeave;
-import com.dqu.simplerauth.listeners.OnPlayerLogin;
 import com.dqu.simplerauth.managers.ConfigManager;
 import com.dqu.simplerauth.managers.LangManager;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.network.ClientConnection;
-import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.OperatorList;
 import net.minecraft.server.PlayerManager;
 import net.minecraft.server.Whitelist;
@@ -30,7 +28,6 @@ import java.util.regex.Pattern;
 @Mixin(PlayerManager.class)
 public class PlayerManagerMixin {
     @Shadow @Final private List<ServerPlayerEntity> players;
-    @Shadow @Final private MinecraftServer server;
     @Shadow private boolean whitelistEnabled;
     @Shadow @Final private Whitelist whitelist;
     @Shadow @Final private OperatorList ops;
@@ -70,9 +67,8 @@ public class PlayerManagerMixin {
 
     @Inject(method = "isWhitelisted", at = @At("HEAD"), cancellable = true)
     public void isWhitelisted(GameProfile profile, CallbackInfoReturnable<Boolean> cir) {
-        // Removed uuid check for offline players to avoid them being kicked for inconsistent uuid
+        // Removed uuid check to avoid offline players being kicked for inconsistent uuid
         String username = profile.getName();
-        if (OnPlayerLogin.canUseOnlineAuth(this.server, username)) return;
         if (!this.whitelistEnabled
                 || containsCaseInsensitive(this.ops.getNames(), username)
                 || containsCaseInsensitive(this.whitelist.getNames(), username)

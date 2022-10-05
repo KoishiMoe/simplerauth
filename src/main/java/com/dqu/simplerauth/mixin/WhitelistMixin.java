@@ -1,6 +1,5 @@
 package com.dqu.simplerauth.mixin;
 
-import com.dqu.simplerauth.listeners.OnPlayerLogin;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.server.ServerConfigList;
 import net.minecraft.server.Whitelist;
@@ -21,7 +20,6 @@ public abstract class WhitelistMixin extends ServerConfigList<GameProfile, White
     @Inject(method = "isAllowed", at = @At("HEAD"), cancellable = true)
     public void isAllowed(GameProfile profile, CallbackInfoReturnable<Boolean> cir) {
         String username = profile.getName();
-        if (OnPlayerLogin.canUseOnlineAuth(null, username)) return;
         if (containsCaseInsensitive(((Whitelist) (Object)this).getNames(), username)) cir.setReturnValue(true);
     }
 

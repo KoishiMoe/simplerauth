@@ -4,28 +4,63 @@ import com.dqu.simplerauth.AuthMod;
 import com.dqu.simplerauth.managers.CacheManager;
 import com.google.gson.JsonObject;
 import com.mojang.authlib.GameProfile;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import net.minecraft.server.Whitelist;
 import net.minecraft.server.WhitelistEntry;
 import net.minecraft.server.command.ServerCommandSource;
 import net.minecraft.server.dedicated.command.WhitelistCommand;
+import net.minecraft.text.Text;
+import net.minecraft.text.Texts;
+import net.minecraft.util.dynamic.DynamicSerializableUuid;
+import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.spongepowered.asm.mixin.Overwrite;
+import org.spongepowered.asm.mixin.Shadow;
 
 import java.util.Collection;
 import java.util.UUID;
 
 @Mixin(WhitelistCommand.class)
 public class WhitelistCommandMixin {
-    // Not elegant, but it does work
-    @Inject(method = "executeRemove", at = @At("RETURN"))
-    private static void removeOnline(ServerCommandSource source, Collection<GameProfile> targets, CallbackInfoReturnable<Integer> cir) {
-        Whitelist whitelist = source.getServer().getPlayerManager().getWhitelist();
+    @Shadow @Final private static SimpleCommandExceptionType REMOVE_FAILED_EXCEPTION;
+    @Shadow @Final private static SimpleCommandExceptionType ADD_FAILED_EXCEPTION;
 
-        for (GameProfile target : targets) {
-            if (whitelist.isAllowed(target)) {
-                String username = target.getName();
+    @Overwrite
+    private static int executeAdd(ServerCommandSource source, Collection<GameProfile> targets) throws CommandSyntaxException {
+        // Force use offline UUID to avoid confusion. This should not affect the player's archive
+        Whitelist whitelist = source.getServer().getPlayerManager().getWhitelist();
+        int i = 0;
+
+        for (GameProfile profile : targets) {
+            if (!whitelist.isAllowed(profile)) {
+                String username = profile.getName();
+
+                UUID offlineUuid = DynamicSerializableUuid.getOfflinePlayerUuid(username);
+                GameProfile offlineProfile = new GameProfile(offlineUuid, username);
+                WhitelistEntry offlineEntry = new WhitelistEntry(offlineProfile);
+                whitelist.add(offlineEntry);
+                source.sendFeedback(Text.translatable("commands.whitelist.add.success", Texts.toText(profile)), true);
+                ++i;
+            }
+        }
+
+        if (i == 0) {
+            throw ADD_FAILED_EXCEPTION.create();
+        } else {
+            return i;
+        }
+    }
+
+    @Overwrite
+    private static int executeRemove(ServerCommandSource source, Collection<GameProfile> targets) throws CommandSyntaxException {
+        Whitelist whitelist = source.getServer().getPlayerManager().getWhitelist();
+        int i = 0;
+
+        for (GameProfile profile : targets) {
+            if (whitelist.isAllowed(profile)) {
+                String username = profile.getName();
+                // handle online account
                 if (AuthMod.doesMinecraftAccountExist(username)) {
                     JsonObject cachedAccount = CacheManager.getMinecraftAccount(username);
                     if (cachedAccount != null) {
@@ -38,8 +73,21 @@ public class WhitelistCommandMixin {
                         whitelist.remove(onlineEntry);
                     }
                 }
+                // handle offline account
+                UUID offlineUuid = DynamicSerializableUuid.getOfflinePlayerUuid(username);
+                GameProfile offlineProfile = new GameProfile(offlineUuid, username);
+                WhitelistEntry offlineEntry = new WhitelistEntry(offlineProfile);
+                whitelist.remove(offlineEntry);
+
+                source.sendFeedback(Text.translatable("commands.whitelist.remove.success", Texts.toText(profile)), true);
+                ++i;
             }
         }
-        source.getServer().kickNonWhitelistedPlayers(source);
+        if (i == 0) {
+            throw REMOVE_FAILED_EXCEPTION.create();
+        } else {
+            source.getServer().kickNonWhitelistedPlayers(source);
+            return i;
+        }
     }
 }
