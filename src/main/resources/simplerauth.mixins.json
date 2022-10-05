@@ -10,7 +10,9 @@
     "ServerConfigHandlerMixin",
     "ServerLoginNetworkHandlerMixin",
     "ServerPlayNetworkHandlerMixin",
-    "UserCacheMixin"
+    "UserCacheMixin",
+    "WhitelistCommandMixin",
+    "WhitelistMixin"
   ],
   "injectors": {
     "defaultRequire": 1
